@@ -9,12 +9,11 @@ from services.pdf_extractor import extract_pdf_data
 from services.llm_processor import extract_financial_data
 from services.calculator import calculate_financials
 
-# Setup logging - both file and console
+# Setup logging - console only (file logging not available on serverless)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('finsight.log'),
         logging.StreamHandler()
     ]
 )

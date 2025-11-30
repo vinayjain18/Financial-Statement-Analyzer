@@ -6,7 +6,9 @@ import { Upload, FileText, Lock, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+// In production (Vercel), use empty string for same-origin API calls
+// In development, use localhost:8000 for separate Python backend
+const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:8000" : "")
 
 export function UploadSection() {
   const router = useRouter()
