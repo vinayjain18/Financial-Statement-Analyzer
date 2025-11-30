@@ -15,34 +15,22 @@ class TransactionType(str, Enum):
 
 
 class Category(str, Enum):
-    """Transaction categories - both income and expense categories"""
-    # Income categories (for credits)
-    salary = "salary"
-    freelance = "freelance"
-    interest = "interest"
-    dividend = "dividend"
-    refund = "refund"
-    cashback = "cashback"
+    """Transaction categories"""
+    # Income categories (for credits ONLY) - just 2 options
+    income = "income"        # ALL incoming money
+    dividend = "dividend"    # Dividend from stocks only
 
-    # Expense categories (for debits)
-    groceries = "groceries"
-    utilities = "utilities"
-    rent = "rent"
-    entertainment = "entertainment"
-    dining = "dining"
-    transportation = "transportation"
-    fuel = "fuel"
-    healthcare = "healthcare"
-    shopping = "shopping"
-    education = "education"
-    insurance = "insurance"
-    subscriptions = "subscriptions"
-    investment = "investment"
-    transfer = "transfer"
-    fees = "fees"
-    emi = "emi"
-    recharge = "recharge"
-    other = "other"
+    # Expense categories (for debits ONLY) - simplified major categories
+    food = "food"                    # Groceries, dining, restaurants, food delivery
+    bills = "bills"                  # Utilities, recharge, subscriptions, rent
+    shopping = "shopping"            # Amazon, Flipkart, retail, online shopping
+    transport = "transport"          # Uber, Ola, fuel, train, metro, auto
+    health = "health"                # Healthcare, pharmacy, medical
+    entertainment = "entertainment"  # Movies, streaming, gaming
+    investment = "investment"        # Groww, Zerodha, mutual funds, stocks
+    transfer = "transfer"            # UPI transfers to individuals
+    emi = "emi"                      # Loan EMIs, credit card payments
+    other = "other"                  # Anything that doesn't fit above
 
 
 class Transaction(BaseModel):

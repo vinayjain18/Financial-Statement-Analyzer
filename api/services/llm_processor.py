@@ -30,52 +30,50 @@ Rules:
 - is_financial_statement: Set to true ONLY if this is a bank statement, credit card statement, or financial transaction document. Set to false for invoices, receipts, resumes, or other documents.
 - All amounts must be POSITIVE numbers
 
-CRITICAL - How to determine credit vs debit from table columns:
-The table has columns: Date | Narration | Ref No | Value Date | Withdrawal Amount | Deposit Amount | Closing Balance
+===== STEP 1: DETERMINE CREDIT VS DEBIT (MOST IMPORTANT) =====
 
-For EACH transaction row, look at the TWO amount columns:
-- "Withdrawal Amount" column = money going OUT = type "debit"
-- "Deposit Amount" column = money coming IN = type "credit"
+The bank statement table has these columns:
+Date | Narration | Ref No | Value Date | Withdrawal Amount | Deposit Amount | Closing Balance
 
-HOW TO READ: If a row shows "10,000.00 | 0.00" in the amount columns:
-- Withdrawal Amount = 10,000.00 (non-zero) → This is a DEBIT, amount = 10000.00
-- Deposit Amount = 0.00 (zero) → Ignore this column
+CRITICAL: You MUST determine transaction type ONLY by looking at which column has the non-zero amount:
+- If "Withdrawal Amount" column has a non-zero value → type = "debit" (money going OUT)
+- If "Deposit Amount" column has a non-zero value → type = "credit" (money coming IN)
 
-If a row shows "0.00 | 5,000.00" in the amount columns:
-- Withdrawal Amount = 0.00 (zero) → Ignore this column
-- Deposit Amount = 5,000.00 (non-zero) → This is a CREDIT, amount = 5000.00
+Example rows:
+Row: "UPI-NEXTBILLION TECHNOLO-GROWW..." | 10,000.00 | 0.00 | 50,000.00
+     → Withdrawal=10,000.00 (non-zero), Deposit=0.00 (zero) → This is DEBIT, amount=10000.00
 
-IMPORTANT: Use ONLY the column values to determine type. Do NOT guess based on description.
+Row: "NEFT-SALARY-COMPANY..." | 0.00 | 25,000.00 | 75,000.00
+     → Withdrawal=0.00 (zero), Deposit=25,000.00 (non-zero) → This is CREDIT, amount=25000.00
 
-CATEGORIZATION RULES - Be specific, avoid using "other":
+WARNING: NEVER determine type based on description/narration. ONLY use the column values.
+- "GROWW" in description does NOT mean it's income - check the Withdrawal/Deposit columns!
+- "SALARY" in description does NOT automatically mean credit - check the columns!
 
-For CREDITS (money coming in):
-- salary: NEFT/RTGS from companies, employers, "SALARY", payroll
-- freelance: Payments for freelance work, consulting
-- interest: "INTEREST PAID", bank interest credits
-- dividend: Dividend payments from stocks/mutual funds
-- refund: Refunds, reversals, "CRV", cashback returns
-- cashback: Cashback rewards, promotional credits
+===== STEP 2: CATEGORIZE AFTER DETERMINING TYPE =====
 
-For DEBITS (money going out):
-- groceries: DMart, BigBasket, supermarkets, grocery stores, "AVENUE SUPERMARTS"
-- utilities: Electricity, water, gas bills, "GOOGLE INDIA DIGITAL" for utilities
-- rent: Rent payments, housing society
-- entertainment: Movies, Netflix, Prime, Spotify, gaming
-- dining: Restaurants, Zomato, Swiggy, food delivery, cafes
-- transportation: Uber, Ola, Metro, auto, taxi, train tickets, "INDIAN RAILWAYS"
-- fuel: Petrol pumps, fuel stations
-- healthcare: Hospitals, pharmacies, medical, doctors
+ONLY after you have determined the type from column values, assign a category:
+
+For type="credit" (Deposit column had the amount) - USE ONLY:
+- income: ALL incoming money (salary, NEFT, interest, refunds, transfers IN)
+- dividend: ONLY if description explicitly contains "DIVIDEND"
+
+For type="debit" (Withdrawal column had the amount) - USE:
+- food: Groceries, DMart, BigBasket, restaurants, Zomato, Swiggy, "AVENUE SUPERMARTS"
+- bills: Utilities, rent, mobile recharge, "JIO PREPAID", subscriptions, Claude.ai, "GOOGLE ONE"
 - shopping: Amazon, Flipkart, online shopping, retail stores
-- education: School fees, courses, books, Udemy, Coursera
-- insurance: Insurance premiums, LIC, health insurance
-- subscriptions: Claude.ai, ChatGPT, software subscriptions, SaaS, "GOOGLE ONE", "GOOGLE PLAY"
-- investment: Groww, Zerodha, mutual funds, stocks, "NEXTBILLION TECHNOLO", trading platforms
-- transfer: UPI transfers to individuals, P2P payments to people's names
-- fees: Bank fees, charges, penalties
+- transport: Uber, Ola, Metro, "INDIAN RAILWAYS", fuel
+- health: Hospitals, pharmacies, medical
+- entertainment: Movies, Netflix, Prime, Spotify, gaming
+- investment: Groww, Zerodha, mutual funds, stocks, "NEXTBILLION TECHNOLO"
+- transfer: UPI transfers to individuals
 - emi: EMI payments, loan repayments, "BAJAJ FINANCE"
-- recharge: Mobile recharge, "JIO PREPAID", DTH recharge
-- other: ONLY use if none of the above categories fit
+- other: ONLY if nothing else fits
+
+===== STRICT VALIDATION =====
+1. Type determination: ALWAYS based on Withdrawal/Deposit column values, NEVER on description
+2. If type="credit", category MUST be "income" or "dividend"
+3. If type="debit", category must be one of: food, bills, shopping, transport, health, entertainment, investment, transfer, emi, other
 
 Do NOT calculate totals - just extract individual transactions.
 If you cannot find opening/closing balance, set them to null.

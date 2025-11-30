@@ -62,11 +62,15 @@ def calculate_financials(gpt_response: Dict[str, Any]) -> Dict[str, Any]:
             "transactionCount": 0
         }
 
+    # Valid categories
+    VALID_INCOME_CATEGORIES = {"income", "dividend"}
+    VALID_EXPENSE_CATEGORIES = {"food", "bills", "shopping", "transport", "health", "entertainment", "investment", "transfer", "emi", "other"}
+
     # Calculate totals
     total_income = 0.0
     total_expenses = 0.0
-    category_breakdown = {}  # For expenses
-    income_breakdown = {}  # For income
+    category_breakdown = {}  # For expenses (debit only)
+    income_breakdown = {}  # For income (credit only)
 
     for txn in transactions:
         try:
@@ -76,13 +80,17 @@ def calculate_financials(gpt_response: Dict[str, Any]) -> Dict[str, Any]:
 
             if txn_type == "credit":
                 total_income += amount
-                # Add to income breakdown
+                # Force income category for credits - only "income" or "dividend" allowed
+                if category not in VALID_INCOME_CATEGORIES:
+                    category = "income"  # Default to income if invalid
                 if category not in income_breakdown:
                     income_breakdown[category] = 0.0
                 income_breakdown[category] += amount
             else:
                 total_expenses += amount
-                # Add to category breakdown (expenses)
+                # Force valid expense category for debits
+                if category not in VALID_EXPENSE_CATEGORIES:
+                    category = "other"  # Default to other if invalid
                 if category not in category_breakdown:
                     category_breakdown[category] = 0.0
                 category_breakdown[category] += amount
