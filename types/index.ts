@@ -13,16 +13,15 @@ export interface CategoryBreakdown {
 }
 
 export interface FinancialSummary {
-  openingBalance: number
-  closingBalance: number
+  openingBalance: number | null
+  closingBalance: number | null
   totalIncome: number
   totalExpenses: number
   netChange: number
   transactions: Transaction[]
   categoryBreakdown: CategoryBreakdown
-  spendingPercentage?: {
-    [category: string]: number
-  }
+  incomeBreakdown: CategoryBreakdown
+  transactionCount?: number
 }
 
 export interface UploadResponse {

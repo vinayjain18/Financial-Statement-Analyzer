@@ -1,75 +1,96 @@
 """
 LLM Processor Service
-Uses OpenAI for financial analysis with structured output.
+Uses OpenAI Structured Outputs with Pydantic for guaranteed JSON compliance.
+GPT only extracts transactions and categorizes them - all calculations done by Python.
 """
 
 import os
-import json
 import logging
-from typing import Dict, Any
-from openai import OpenAI
+from typing import Dict, Any, Optional
+from openai import OpenAI, LengthFinishReasonError
 from dotenv import load_dotenv
 
 from services.pdf_extractor import format_tables_for_prompt
+from services.schemas import FinancialExtraction
 
 load_dotenv()
 
-# Setup logging - both file and console
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('finsight.log'),
-        logging.StreamHandler()
-    ]
-)
+# Setup logging
 logger = logging.getLogger('llm_processor')
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-SYSTEM_PROMPT = """You are a financial analyst. Analyze the bank statement and extract all financial data.
-
-Your task:
-1. Find the opening and closing balance
-2. Extract ALL transactions with date, description, amount, and type (credit/debit)
-3. Categorize each transaction into ONE of: groceries, utilities, entertainment, dining, transportation, income, healthcare, shopping, transfers, or other
-4. Calculate totals for income (sum of all credits) and expenses (sum of all debits)
-5. Calculate the total for each category
-
-IMPORTANT: Return ONLY a valid JSON object with this exact structure (no markdown, no explanation):
-{
-    "openingBalance": number,
-    "closingBalance": number,
-    "totalIncome": number,
-    "totalExpenses": number,
-    "transactions": [
-        {
-            "date": "YYYY-MM-DD or original date format",
-            "description": "transaction description",
-            "category": "category name",
-            "amount": positive number,
-            "type": "credit" or "debit"
-        }
-    ],
-    "categoryBreakdown": {
-        "category_name": total_amount_for_that_category
-    }
-}
+SYSTEM_PROMPT = """You are a financial document analyzer. Your job is to:
+1. Determine if the document is a valid bank/financial statement
+2. Extract opening and closing balance if available
+3. Extract all transactions with date, description, amount, and type
+4. Categorize each transaction into specific categories
 
 Rules:
-- All amounts must be positive numbers
-- "credit" = money coming in (income, deposits, refunds)
-- "debit" = money going out (expenses, purchases, payments)
-- categoryBreakdown should only include categories that have transactions
-- Be accurate with the math - double check your totals"""
+- is_financial_statement: Set to true ONLY if this is a bank statement, credit card statement, or financial transaction document. Set to false for invoices, receipts, resumes, or other documents.
+- All amounts must be POSITIVE numbers
+
+CRITICAL - How to determine credit vs debit from table columns:
+The table has columns: Date | Narration | Ref No | Value Date | Withdrawal Amount | Deposit Amount | Closing Balance
+
+For EACH transaction row, look at the TWO amount columns:
+- "Withdrawal Amount" column = money going OUT = type "debit"
+- "Deposit Amount" column = money coming IN = type "credit"
+
+HOW TO READ: If a row shows "10,000.00 | 0.00" in the amount columns:
+- Withdrawal Amount = 10,000.00 (non-zero) → This is a DEBIT, amount = 10000.00
+- Deposit Amount = 0.00 (zero) → Ignore this column
+
+If a row shows "0.00 | 5,000.00" in the amount columns:
+- Withdrawal Amount = 0.00 (zero) → Ignore this column
+- Deposit Amount = 5,000.00 (non-zero) → This is a CREDIT, amount = 5000.00
+
+IMPORTANT: Use ONLY the column values to determine type. Do NOT guess based on description.
+
+CATEGORIZATION RULES - Be specific, avoid using "other":
+
+For CREDITS (money coming in):
+- salary: NEFT/RTGS from companies, employers, "SALARY", payroll
+- freelance: Payments for freelance work, consulting
+- interest: "INTEREST PAID", bank interest credits
+- dividend: Dividend payments from stocks/mutual funds
+- refund: Refunds, reversals, "CRV", cashback returns
+- cashback: Cashback rewards, promotional credits
+
+For DEBITS (money going out):
+- groceries: DMart, BigBasket, supermarkets, grocery stores, "AVENUE SUPERMARTS"
+- utilities: Electricity, water, gas bills, "GOOGLE INDIA DIGITAL" for utilities
+- rent: Rent payments, housing society
+- entertainment: Movies, Netflix, Prime, Spotify, gaming
+- dining: Restaurants, Zomato, Swiggy, food delivery, cafes
+- transportation: Uber, Ola, Metro, auto, taxi, train tickets, "INDIAN RAILWAYS"
+- fuel: Petrol pumps, fuel stations
+- healthcare: Hospitals, pharmacies, medical, doctors
+- shopping: Amazon, Flipkart, online shopping, retail stores
+- education: School fees, courses, books, Udemy, Coursera
+- insurance: Insurance premiums, LIC, health insurance
+- subscriptions: Claude.ai, ChatGPT, software subscriptions, SaaS, "GOOGLE ONE", "GOOGLE PLAY"
+- investment: Groww, Zerodha, mutual funds, stocks, "NEXTBILLION TECHNOLO", trading platforms
+- transfer: UPI transfers to individuals, P2P payments to people's names
+- fees: Bank fees, charges, penalties
+- emi: EMI payments, loan repayments, "BAJAJ FINANCE"
+- recharge: Mobile recharge, "JIO PREPAID", DTH recharge
+- other: ONLY use if none of the above categories fit
+
+Do NOT calculate totals - just extract individual transactions.
+If you cannot find opening/closing balance, set them to null.
+If this is not a financial statement, set is_financial_statement to false and return empty transactions list."""
 
 
-async def analyze_financial_data(extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+async def extract_financial_data(extracted_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Analyze extracted PDF data using OpenAI.
-    Simple approach without tool calling for reliability.
+    Extract financial data from PDF using GPT with Structured Outputs.
+    Uses Pydantic model for guaranteed JSON compliance.
+
+    Returns:
+        Dict with is_financial_statement, opening_balance, closing_balance, transactions
     """
-    logger.info("Starting financial data analysis")
+    logger.info("Starting GPT extraction with Structured Outputs")
 
     # Format the prompt - limit text to avoid token limits
     text_content = extracted_data.get('text', '')
@@ -83,127 +104,90 @@ async def analyze_financial_data(extracted_data: Dict[str, Any]) -> Dict[str, An
         tables_formatted = tables_formatted[:5000] + "\n...[truncated]"
     logger.info(f"Tables formatted length: {len(tables_formatted)}")
 
-    user_prompt = f"""Analyze this bank statement and extract all financial data.
+    user_prompt = f"""Analyze this document and extract financial data.
 
-STATEMENT TEXT:
+DOCUMENT TEXT:
 {text_content}
 
 TABLES:
 {tables_formatted}
 
-Extract all transactions, categorize them, calculate totals, and return the JSON response."""
+Determine if this is a financial statement, extract balances and all transactions, and categorize each transaction."""
 
     try:
-        logger.info("Making OpenAI API call")
+        logger.info("Making OpenAI API call with Structured Outputs")
 
-        response = client.chat.completions.create(
+        # Use beta.chat.completions.parse for structured output
+        completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt}
             ],
+            response_format=FinancialExtraction,
             temperature=0,
             max_tokens=4096
         )
 
-        content = response.choices[0].message.content
-        finish_reason = response.choices[0].finish_reason
-        logger.info(f"Response received. finish_reason: {finish_reason}, content length: {len(content) if content else 0}")
+        # Get the parsed result
+        message = completion.choices[0].message
+        finish_reason = completion.choices[0].finish_reason
+        logger.info(f"Response received. finish_reason: {finish_reason}")
 
-        if not content:
-            logger.error("Empty response from OpenAI")
-            return create_error_response("Empty response from AI")
+        # Check if model refused to respond
+        if message.refusal:
+            logger.warning(f"Model refused: {message.refusal}")
+            return {
+                "is_financial_statement": False,
+                "opening_balance": None,
+                "closing_balance": None,
+                "transactions": [],
+                "error": f"Model refused to process: {message.refusal}"
+            }
 
-        # Clean and parse JSON
-        content = content.strip()
+        # Get parsed Pydantic object
+        parsed_result: Optional[FinancialExtraction] = message.parsed
 
-        # Remove markdown code blocks if present
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            parts = content.split("```")
-            if len(parts) >= 2:
-                content = parts[1]
+        if parsed_result is None:
+            logger.error("Parsed result is None")
+            return {
+                "is_financial_statement": False,
+                "opening_balance": None,
+                "closing_balance": None,
+                "transactions": [],
+                "error": "Failed to parse response"
+            }
 
-        content = content.strip()
-        logger.info(f"Cleaned content length: {len(content)}")
-        logger.debug(f"Content preview: {content[:200]}...")
+        logger.info(f"Successfully parsed. is_financial_statement: {parsed_result.is_financial_statement}")
+        logger.info(f"Transactions count: {len(parsed_result.transactions)}")
 
-        result = json.loads(content)
-        logger.info("Successfully parsed JSON response")
+        # Convert Pydantic model to dict for downstream processing
+        return {
+            "is_financial_statement": parsed_result.is_financial_statement,
+            "opening_balance": parsed_result.opening_balance,
+            "closing_balance": parsed_result.closing_balance,
+            "transactions": [
+                {
+                    "date": t.date,
+                    "description": t.description,
+                    "category": t.category.value,
+                    "amount": t.amount,
+                    "type": t.type.value
+                }
+                for t in parsed_result.transactions
+            ]
+        }
 
-        # Validate and fix the result
-        result = validate_and_fix_result(result)
-
-        return result
-
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parse error: {e}")
-        logger.error(f"Raw content: {content[:1000] if 'content' in locals() and content else 'N/A'}")
-        return create_error_response(f"Failed to parse AI response as JSON")
+    except LengthFinishReasonError as e:
+        # Response was cut off due to max_tokens
+        logger.error(f"Response truncated (too long): {e}")
+        return {
+            "is_financial_statement": False,
+            "opening_balance": None,
+            "closing_balance": None,
+            "transactions": [],
+            "error": "Document too large to process. Please try a smaller statement."
+        }
     except Exception as e:
         logger.error(f"OpenAI API error: {e}", exc_info=True)
         raise Exception(f"OpenAI API error: {str(e)}")
-
-
-def validate_and_fix_result(result: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate and fix the result structure."""
-    logger.info("Validating result structure")
-
-    # Ensure all required fields exist
-    defaults = {
-        "openingBalance": 0,
-        "closingBalance": 0,
-        "totalIncome": 0,
-        "totalExpenses": 0,
-        "transactions": [],
-        "categoryBreakdown": {}
-    }
-
-    for key, default_value in defaults.items():
-        if key not in result:
-            logger.warning(f"Missing field '{key}', using default")
-            result[key] = default_value
-
-    # Recalculate totals from transactions if they exist
-    if result["transactions"]:
-        total_income = 0
-        total_expenses = 0
-        category_totals = {}
-
-        for txn in result["transactions"]:
-            amount = abs(float(txn.get("amount", 0)))
-            txn_type = txn.get("type", "debit")
-            category = txn.get("category", "other")
-
-            if txn_type == "credit":
-                total_income += amount
-            else:
-                total_expenses += amount
-                # Only count expenses in category breakdown
-                if category not in category_totals:
-                    category_totals[category] = 0
-                category_totals[category] += amount
-
-        # Update with recalculated values
-        result["totalIncome"] = round(total_income, 2)
-        result["totalExpenses"] = round(total_expenses, 2)
-        result["categoryBreakdown"] = {k: round(v, 2) for k, v in category_totals.items()}
-
-        logger.info(f"Recalculated - Income: {result['totalIncome']}, Expenses: {result['totalExpenses']}")
-        logger.info(f"Category breakdown: {result['categoryBreakdown']}")
-
-    return result
-
-
-def create_error_response(error_msg: str) -> Dict[str, Any]:
-    """Create a standard error response."""
-    return {
-        "openingBalance": 0,
-        "closingBalance": 0,
-        "totalIncome": 0,
-        "totalExpenses": 0,
-        "transactions": [],
-        "categoryBreakdown": {},
-        "error": error_msg
-    }

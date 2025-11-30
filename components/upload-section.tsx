@@ -1,13 +1,19 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { Upload, FileText, Lock } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Upload, FileText, Lock, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
 export function UploadSection() {
+  const router = useRouter()
   const [isDragging, setIsDragging] = useState(false)
   const [file, setFile] = useState<File | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -40,11 +46,38 @@ export function UploadSection() {
     }
   }, [])
 
-  const handleUpload = () => {
-    if (file) {
-      // TODO: Implement upload logic
-      console.log("Uploading file:", file.name)
-      alert("Upload functionality coming soon!")
+  const handleUpload = async () => {
+    if (!file) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch(`${API_URL}/api/python/analyze`, {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.detail || "Failed to analyze statement")
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to analyze statement")
+      }
+
+      // Store the result in localStorage and redirect to dashboard
+      localStorage.setItem("financialData", JSON.stringify(result.data))
+      router.push("/dashboard")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -121,17 +154,40 @@ export function UploadSection() {
                 </div>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+
               {/* Upload Button */}
               {file && (
                 <div className="mt-6 flex flex-col gap-3">
-                  <Button onClick={handleUpload} size="lg" className="w-full">
-                    Analyze Statement
+                  <Button
+                    onClick={handleUpload}
+                    size="lg"
+                    className="w-full"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      "Analyze Statement"
+                    )}
                   </Button>
                   <Button
-                    onClick={() => setFile(null)}
+                    onClick={() => {
+                      setFile(null)
+                      setError(null)
+                    }}
                     variant="outline"
                     size="lg"
                     className="w-full"
+                    disabled={isLoading}
                   >
                     Choose Different File
                   </Button>

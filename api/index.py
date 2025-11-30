@@ -6,7 +6,8 @@ import tempfile
 import os
 
 from services.pdf_extractor import extract_pdf_data
-from services.llm_processor import analyze_financial_data
+from services.llm_processor import extract_financial_data
+from services.calculator import calculate_financials
 
 # Setup logging - both file and console
 logging.basicConfig(
@@ -42,11 +43,18 @@ async def health_check():
 async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     Analyze a bank statement PDF and return financial insights.
+
+    Flow:
+    1. Extract text/tables from PDF (pdfplumber)
+    2. Send to GPT for extraction and categorization
+    3. Validate if it's a financial statement
+    4. Calculate totals using Python
+    5. Return complete financial summary
     """
     logger.info(f"Received file: {file.filename}, content_type: {file.content_type}")
 
     # Validate file type
-    if not file.filename.endswith(".pdf"):
+    if not file.filename.lower().endswith(".pdf"):
         logger.warning(f"Invalid file type: {file.filename}")
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -59,16 +67,17 @@ async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
         logger.warning(f"File too large: {file_size} bytes")
         raise HTTPException(status_code=400, detail="File size must be under 10MB")
 
+    tmp_path = None
     try:
-        # Save to temp file for processing
-        logger.info("Saving to temporary file")
+        # Step 1: Save to temp file for processing
+        logger.info("Step 1: Saving to temporary file")
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(content)
             tmp_path = tmp.name
         logger.info(f"Temp file created: {tmp_path}")
 
-        # Extract data from PDF
-        logger.info("Starting PDF extraction")
+        # Step 2: Extract data from PDF
+        logger.info("Step 2: Extracting data from PDF")
         extracted_data = extract_pdf_data(tmp_path)
 
         text_length = len(extracted_data.get("text", ""))
@@ -79,17 +88,40 @@ async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
             logger.error("No data extracted from PDF")
             raise HTTPException(
                 status_code=400,
-                detail="Could not extract data from PDF. Please ensure it's a valid bank statement."
+                detail="Could not extract data from PDF. Please ensure the file is not corrupted."
             )
 
-        # Analyze with LLM
-        logger.info("Starting LLM analysis")
-        analysis = await analyze_financial_data(extracted_data)
-        logger.info("LLM analysis complete")
+        # Step 3: Send to GPT for extraction and categorization
+        logger.info("Step 3: Sending to GPT for extraction and categorization")
+        gpt_response = await extract_financial_data(extracted_data)
 
+        # Step 4: Check if valid financial statement
+        logger.info("Step 4: Validating document type")
+        if not gpt_response.get("is_financial_statement", False):
+            logger.warning("Document is not a financial statement")
+            return {
+                "success": False,
+                "error": "The uploaded document is not a valid bank statement. Please upload a bank statement PDF.",
+                "data": None
+            }
+
+        # Step 5: Calculate totals using Python
+        logger.info("Step 5: Calculating financial totals")
+        result = calculate_financials(gpt_response)
+
+        if not result.get("success"):
+            logger.error(f"Calculation failed: {result.get('error')}")
+            return {
+                "success": False,
+                "error": result.get("error", "Failed to process financial data"),
+                "data": None
+            }
+
+        logger.info("Analysis complete successfully")
         return {
             "success": True,
-            "data": analysis
+            "error": None,
+            "data": result
         }
 
     except HTTPException:
@@ -99,7 +131,7 @@ async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
     finally:
         # Clean up temp file
-        if 'tmp_path' in locals() and os.path.exists(tmp_path):
+        if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
             logger.info(f"Temp file deleted: {tmp_path}")
 

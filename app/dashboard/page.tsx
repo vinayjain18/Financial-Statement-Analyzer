@@ -1,58 +1,45 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Download, FileDown } from "lucide-react"
+import { ArrowLeft, Download, FileDown, Loader2 } from "lucide-react"
 import Link from "next/link"
-
-// Mock data - will be replaced with real data from API
-const mockData = {
-  openingBalance: 5000.0,
-  closingBalance: 4235.5,
-  totalIncome: 2500.0,
-  totalExpenses: 3264.5,
-  netChange: -764.5,
-  transactions: [
-    {
-      date: "2025-01-15",
-      description: "Salary Deposit",
-      category: "Income",
-      amount: 2500.0,
-      type: "credit",
-    },
-    {
-      date: "2025-01-16",
-      description: "Walmart Purchase",
-      category: "Groceries",
-      amount: -125.5,
-      type: "debit",
-    },
-    {
-      date: "2025-01-17",
-      description: "Netflix Subscription",
-      category: "Entertainment",
-      amount: -15.99,
-      type: "debit",
-    },
-    {
-      date: "2025-01-18",
-      description: "Electric Bill",
-      category: "Utilities",
-      amount: -85.0,
-      type: "debit",
-    },
-  ],
-  categoryBreakdown: {
-    Groceries: 450.75,
-    Utilities: 200.0,
-    Entertainment: 150.0,
-    Dining: 300.25,
-    Transportation: 125.0,
-    Other: 2038.5,
-  },
-}
+import { FinancialSummary } from "@/types"
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [data, setData] = useState<FinancialSummary | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    // Load data from localStorage
+    const storedData = localStorage.getItem("financialData")
+    if (storedData) {
+      try {
+        setData(JSON.parse(storedData))
+      } catch {
+        router.push("/")
+      }
+    } else {
+      // No data, redirect to home
+      router.push("/")
+    }
+    setIsLoading(false)
+  }, [router])
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return null
+  }
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -98,7 +85,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${mockData.openingBalance.toFixed(2)}
+                {data.openingBalance !== null ? `₹${data.openingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "N/A"}
               </div>
             </CardContent>
           </Card>
@@ -111,7 +98,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${mockData.closingBalance.toFixed(2)}
+                {data.closingBalance !== null ? `₹${data.closingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "N/A"}
               </div>
             </CardContent>
           </Card>
@@ -124,7 +111,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                +${mockData.totalIncome.toFixed(2)}
+                +₹{data.totalIncome.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
           </Card>
@@ -137,7 +124,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">
-                -${mockData.totalExpenses.toFixed(2)}
+                -₹{data.totalExpenses.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </div>
             </CardContent>
           </Card>
@@ -145,49 +132,78 @@ export default function DashboardPage() {
 
         {/* Charts Section */}
         <div className="mb-8 grid gap-8 lg:grid-cols-2">
-          {/* Category Breakdown */}
+          {/* Expense Breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle>Spending by Category</CardTitle>
+              <CardTitle className="text-red-600">Spending by Category</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {Object.entries(mockData.categoryBreakdown).map(
-                  ([category, amount]) => {
-                    const percentage = (
-                      (amount / mockData.totalExpenses) *
-                      100
-                    ).toFixed(1)
-                    return (
-                      <div key={category} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium">{category}</span>
-                          <span className="text-muted-foreground">
-                            ${amount.toFixed(2)} ({percentage}%)
-                          </span>
+              <div className="space-y-4 max-h-[350px] overflow-y-auto">
+                {Object.keys(data.categoryBreakdown).length > 0 ? (
+                  Object.entries(data.categoryBreakdown).map(
+                    ([category, amount]) => {
+                      const percentage = data.totalExpenses > 0
+                        ? ((amount / data.totalExpenses) * 100).toFixed(1)
+                        : "0"
+                      return (
+                        <div key={category} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium capitalize">{category}</span>
+                            <span className="text-muted-foreground">
+                              ₹{amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} ({percentage}%)
+                            </span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full bg-red-500"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    )
-                  }
+                      )
+                    }
+                  )
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No expenses found</p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Placeholder for Chart */}
+          {/* Income Breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle>Monthly Trend</CardTitle>
+              <CardTitle className="text-green-600">Income by Category</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex h-[300px] items-center justify-center rounded-lg bg-muted/30">
-                <p className="text-muted-foreground">Chart coming soon</p>
+              <div className="space-y-4 max-h-[350px] overflow-y-auto">
+                {data.incomeBreakdown && Object.keys(data.incomeBreakdown).length > 0 ? (
+                  Object.entries(data.incomeBreakdown).map(
+                    ([category, amount]) => {
+                      const percentage = data.totalIncome > 0
+                        ? ((amount / data.totalIncome) * 100).toFixed(1)
+                        : "0"
+                      return (
+                        <div key={category} className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="font-medium capitalize">{category}</span>
+                            <span className="text-muted-foreground">
+                              ₹{amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} ({percentage}%)
+                            </span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full bg-green-500"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    }
+                  )
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No income found</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -196,12 +212,12 @@ export default function DashboardPage() {
         {/* Transaction History */}
         <Card>
           <CardHeader>
-            <CardTitle>Transaction History</CardTitle>
+            <CardTitle>Transaction History ({data.transactions.length} transactions)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
               <table className="w-full">
-                <thead>
+                <thead className="sticky top-0 bg-background">
                   <tr className="border-b">
                     <th className="pb-3 text-left text-sm font-medium text-muted-foreground">
                       Date
@@ -218,12 +234,14 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {mockData.transactions.map((transaction, index) => (
+                  {data.transactions.map((transaction, index) => (
                     <tr key={index} className="hover:bg-muted/50">
                       <td className="py-3 text-sm">{transaction.date}</td>
-                      <td className="py-3 text-sm">{transaction.description}</td>
+                      <td className="py-3 text-sm max-w-[300px] truncate" title={transaction.description}>
+                        {transaction.description}
+                      </td>
                       <td className="py-3 text-sm">
-                        <span className="inline-flex rounded-full bg-muted px-2 py-1 text-xs">
+                        <span className="inline-flex rounded-full bg-muted px-2 py-1 text-xs capitalize">
                           {transaction.category}
                         </span>
                       </td>
@@ -234,8 +252,8 @@ export default function DashboardPage() {
                             : "text-red-600"
                         }`}
                       >
-                        {transaction.type === "credit" ? "+" : ""}$
-                        {Math.abs(transaction.amount).toFixed(2)}
+                        {transaction.type === "credit" ? "+" : "-"}₹
+                        {transaction.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
