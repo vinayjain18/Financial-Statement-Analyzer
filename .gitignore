@@ -49,6 +49,7 @@ venv/
 env/
 ENV/
 api/.venv/
+api/*.log
 
 another-folder/
 CLAUDE.md
