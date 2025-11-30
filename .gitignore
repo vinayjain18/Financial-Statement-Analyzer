@@ -48,7 +48,7 @@ __pycache__/
 venv/
 env/
 ENV/
-api/venv/
+api/.venv/
 
 another-folder/
 CLAUDE.md
