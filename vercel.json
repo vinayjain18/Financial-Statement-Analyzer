@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "env": {
-    "PYTHONPATH": "api/"
-  },
   "builds": [
     {
       "src": "api/index.py",
@@ -18,8 +15,8 @@
   ],
   "routes": [
     {
-      "src": "/api/python/(.*)",
-      "dest": "api/index.py"
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
     },
     {
       "src": "/(.*)",

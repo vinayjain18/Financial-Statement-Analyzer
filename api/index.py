@@ -4,6 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 import tempfile
 import os
+import sys
+
+# Add the current directory to sys.path for Vercel deployment
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
 from services.pdf_extractor import extract_pdf_data
 from services.llm_processor import extract_financial_data
@@ -31,14 +36,14 @@ app.add_middleware(
 )
 
 
-@app.get("/api/python/health")
+@app.get("/api/health")
 async def health_check():
     """Health check endpoint"""
     logger.info("Health check requested")
     return {"status": "healthy", "message": "FinSight API is running"}
 
 
-@app.post("/api/python/analyze")
+@app.post("/api/analyze")
 async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
     """
     Analyze a bank statement PDF and return financial insights.
@@ -133,7 +138,3 @@ async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
             logger.info(f"Temp file deleted: {tmp_path}")
-
-
-# Required for Vercel
-handler = app

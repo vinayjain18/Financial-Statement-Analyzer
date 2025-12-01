@@ -58,7 +58,7 @@ export function UploadSection() {
       const formData = new FormData()
       formData.append("file", file)
 
-      const response = await fetch(`${API_URL}/api/python/analyze`, {
+      const response = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
         body: formData,
       })
