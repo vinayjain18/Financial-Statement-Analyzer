@@ -78,7 +78,7 @@ export default function DashboardPage() {
       const percentage = data.totalExpenses > 0
         ? ((amount / data.totalExpenses) * 100).toFixed(1)
         : "0"
-      lines.push(`${category},${amount},${percentage}%`)
+      lines.push(`${capitalizeFirst(category)},${amount},${percentage}%`)
     })
     lines.push("")
 
@@ -90,7 +90,7 @@ export default function DashboardPage() {
         const percentage = data.totalIncome > 0
           ? ((amount / data.totalIncome) * 100).toFixed(1)
           : "0"
-        lines.push(`${category},${amount},${percentage}%`)
+        lines.push(`${capitalizeFirst(category)},${amount},${percentage}%`)
       })
     }
     lines.push("")
@@ -103,7 +103,7 @@ export default function DashboardPage() {
       const escapedDesc = txn.description.includes(",") || txn.description.includes('"')
         ? `"${txn.description.replace(/"/g, '""')}"`
         : txn.description
-      lines.push(`${txn.date},${escapedDesc},${txn.category},${txn.type},${txn.amount}`)
+      lines.push(`${txn.date},${escapedDesc},${capitalizeFirst(txn.category)},${txn.type},${txn.amount}`)
     })
 
     // Create and download file
@@ -112,7 +112,7 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `finsight-report-${new Date().toISOString().split("T")[0]}.csv`
+    link.download = `FinSight-Report-${new Date().toISOString().split("T")[0]}.csv`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -274,7 +274,7 @@ export default function DashboardPage() {
     }
 
     // Save PDF
-    doc.save(`finsight-report-${new Date().toISOString().split("T")[0]}.pdf`)
+    doc.save(`FinSight-Report-${new Date().toISOString().split("T")[0]}.pdf`)
   }
 
   return (
