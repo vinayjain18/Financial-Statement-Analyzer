@@ -6,6 +6,7 @@ import { Upload, FileText, Lock, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import HCaptcha from "@hcaptcha/react-hcaptcha"
+import { AnalysisLoader } from "./analysis-loader"
 
 // hCaptcha site key from environment variable
 const HCAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY
@@ -120,7 +121,11 @@ export function UploadSection() {
   }
 
   return (
-    <section id="upload" className="bg-muted/30 py-20 md:py-32">
+    <>
+      {/* Analysis Loader Overlay */}
+      {isLoading && <AnalysisLoader />}
+
+      <section id="upload" className="bg-muted/30 py-20 md:py-32">
       <div className="container">
         <div className="mx-auto max-w-2xl">
           {/* Section Header */}
@@ -270,5 +275,6 @@ export function UploadSection() {
         </div>
       </div>
     </section>
+    </>
   )
 }
