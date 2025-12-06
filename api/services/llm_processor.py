@@ -123,8 +123,7 @@ Determine if this is a financial statement, extract balances and all transaction
                 {"role": "user", "content": user_prompt}
             ],
             response_format=FinancialExtraction,
-            temperature=0,
-            max_tokens=4096
+            temperature=0
         )
 
         # Get the parsed result
