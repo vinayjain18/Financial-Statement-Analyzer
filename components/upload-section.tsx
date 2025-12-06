@@ -1,14 +1,18 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, FileText, Lock, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import HCaptcha from "@hcaptcha/react-hcaptcha"
 
 // In production (Vercel), use empty string for same-origin API calls
 // In development, use localhost:8000 for separate Python backend
 const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:8000" : "")
+
+// hCaptcha site key from environment variable
+const HCAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY
 
 export function UploadSection() {
   const router = useRouter()
@@ -16,6 +20,8 @@ export function UploadSection() {
   const [file, setFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hcaptchaToken, setHcaptchaToken] = useState<string | null>(null)
+  const captchaRef = useRef<HCaptcha>(null)
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -51,12 +57,23 @@ export function UploadSection() {
   const handleUpload = async () => {
     if (!file) return
 
+    // Check if hCaptcha is required and token is missing
+    if (HCAPTCHA_SITE_KEY && !hcaptchaToken) {
+      setError("Please complete the captcha verification")
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
     try {
       const formData = new FormData()
       formData.append("file", file)
+
+      // Add hCaptcha token if available
+      if (hcaptchaToken) {
+        formData.append("hcaptcha_token", hcaptchaToken)
+      }
 
       const response = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
@@ -78,6 +95,9 @@ export function UploadSection() {
       router.push("/dashboard")
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred")
+      // Reset captcha on error
+      captchaRef.current?.resetCaptcha()
+      setHcaptchaToken(null)
     } finally {
       setIsLoading(false)
     }
@@ -160,6 +180,19 @@ export function UploadSection() {
               {error && (
                 <div className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-600">
                   {error}
+                </div>
+              )}
+
+              {/* hCaptcha Widget */}
+              {file && HCAPTCHA_SITE_KEY && (
+                <div className="mt-6 flex justify-center">
+                  <HCaptcha
+                    ref={captchaRef}
+                    sitekey={HCAPTCHA_SITE_KEY}
+                    onVerify={(token: string) => setHcaptchaToken(token)}
+                    onExpire={() => setHcaptchaToken(null)}
+                    onError={() => setHcaptchaToken(null)}
+                  />
                 </div>
               )}
 

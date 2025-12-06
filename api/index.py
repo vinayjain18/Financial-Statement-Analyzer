@@ -1,10 +1,21 @@
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, Any
+from fastapi.responses import JSONResponse
+from typing import Dict, Any, Optional
 import tempfile
 import os
 import sys
+import httpx
+
+# Rate limiting imports
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# hCaptcha configuration
+HCAPTCHA_SECRET_KEY = os.getenv("HCAPTCHA_SECRET_KEY")
+HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
 
 # Add the current directory to sys.path for Vercel deployment
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,43 +35,102 @@ logging.basicConfig(
 )
 logger = logging.getLogger('finsight_api')
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="FinSight API", version="1.0.0")
 
-# CORS configuration
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS configuration - restricted to specific origins
+ALLOWED_ORIGINS = [
+    "https://financial-statement-analyzer-three.vercel.app",
+    "http://localhost:3000",  # For local development
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
+async def verify_hcaptcha(token: str, remote_ip: str) -> bool:
+    """Verify hCaptcha token with hCaptcha API"""
+    if not HCAPTCHA_SECRET_KEY:
+        logger.warning("HCAPTCHA_SECRET_KEY not configured, skipping verification")
+        return True  # Skip verification if not configured (for development)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                HCAPTCHA_VERIFY_URL,
+                data={
+                    "secret": HCAPTCHA_SECRET_KEY,
+                    "response": token,
+                    "remoteip": remote_ip
+                }
+            )
+            result = response.json()
+            return result.get("success", False)
+    except Exception as e:
+        logger.error(f"hCaptcha verification error: {str(e)}")
+        return False
+
+
 @app.get("/api/health")
-async def health_check():
+@limiter.limit("60/minute")
+async def health_check(request: Request):
     """Health check endpoint"""
     logger.info("Health check requested")
     return {"status": "healthy", "message": "FinSight API is running"}
 
 
 @app.post("/api/analyze")
-async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
+@limiter.limit("10/hour")  # Rate limit: 10 uploads per hour per IP
+async def analyze_statement(
+    request: Request,
+    file: UploadFile = File(...),
+    hcaptcha_token: Optional[str] = Form(None)
+) -> Dict[str, Any]:
     """
     Analyze a bank statement PDF and return financial insights.
 
     Flow:
-    1. Extract text/tables from PDF (pdfplumber)
-    2. Send to GPT for extraction and categorization
-    3. Validate if it's a financial statement
-    4. Calculate totals using Python
-    5. Return complete financial summary
+    1. Verify hCaptcha token (if configured)
+    2. Extract text/tables from PDF (pdfplumber)
+    3. Send to GPT for extraction and categorization
+    4. Validate if it's a financial statement
+    5. Calculate totals using Python
+    6. Return complete financial summary
     """
     logger.info(f"Received file: {file.filename}, content_type: {file.content_type}")
 
-    # Validate file type
+    # Verify hCaptcha token
+    if HCAPTCHA_SECRET_KEY:
+        if not hcaptcha_token:
+            logger.warning("hCaptcha token missing")
+            raise HTTPException(status_code=400, detail="Please complete the captcha verification")
+
+        client_ip = request.client.host if request.client else "unknown"
+        is_valid = await verify_hcaptcha(hcaptcha_token, client_ip)
+        if not is_valid:
+            logger.warning("hCaptcha verification failed")
+            raise HTTPException(status_code=400, detail="Captcha verification failed. Please try again.")
+
+    # Validate file extension
     if not file.filename.lower().endswith(".pdf"):
         logger.warning(f"Invalid file type: {file.filename}")
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+    # Validate content type
+    if file.content_type != "application/pdf":
+        logger.warning(f"Invalid content type: {file.content_type}")
+        raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are allowed")
 
     # Read and check file size
     content = await file.read()
@@ -70,6 +140,11 @@ async def analyze_statement(file: UploadFile = File(...)) -> Dict[str, Any]:
     if file_size > 10 * 1024 * 1024:
         logger.warning(f"File too large: {file_size} bytes")
         raise HTTPException(status_code=400, detail="File size must be under 10MB")
+
+    # PDF magic byte validation - check for %PDF header
+    if not content.startswith(b'%PDF'):
+        logger.warning("Invalid PDF: Missing PDF magic bytes")
+        raise HTTPException(status_code=400, detail="Invalid PDF file format")
 
     tmp_path = None
     try:

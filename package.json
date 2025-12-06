@@ -9,11 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@hcaptcha/react-hcaptcha": "^1.16.0",
     "autoprefixer": "^10.4.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.555.0",
-    "next": "15.1.3",
+    "next": "^15.1.9",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^3.4.0",
