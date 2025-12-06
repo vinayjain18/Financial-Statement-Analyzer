@@ -7,7 +7,7 @@ GPT only extracts transactions and categorizes them - all calculations done by P
 import os
 import logging
 from typing import Dict, Any, Optional
-from openai import OpenAI, LengthFinishReasonError
+from openai import AsyncOpenAI, LengthFinishReasonError
 from dotenv import load_dotenv
 
 from services.pdf_extractor import format_tables_for_prompt
@@ -18,7 +18,7 @@ load_dotenv()
 # Setup logging
 logger = logging.getLogger('llm_processor')
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 SYSTEM_PROMPT = """You are a financial document analyzer. Your job is to:
 1. Determine if the document is a valid bank/financial statement
@@ -115,8 +115,8 @@ Determine if this is a financial statement, extract balances and all transaction
     try:
         logger.info("Making OpenAI API call with Structured Outputs")
 
-        # Use beta.chat.completions.parse for structured output
-        completion = client.beta.chat.completions.parse(
+        # Use beta.chat.completions.parse for structured output (async)
+        completion = await client.beta.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
