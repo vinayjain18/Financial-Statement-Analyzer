@@ -1,18 +1,28 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Upload, FileText, Lock, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import HCaptcha from "@hcaptcha/react-hcaptcha"
 
-// In production (Vercel), use empty string for same-origin API calls
-// In development, use localhost:8000 for separate Python backend
-const API_URL = process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:8000" : "")
-
 // hCaptcha site key from environment variable
 const HCAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY
+
+// Helper to get API URL (only called on client side)
+function getApiUrl(): string {
+  // Use environment variable if set
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL
+  }
+  // In development (localhost), use separate Python backend
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "http://localhost:8000"
+  }
+  // In production (Vercel), use same-origin API calls
+  return ""
+}
 
 export function UploadSection() {
   const router = useRouter()
@@ -21,7 +31,13 @@ export function UploadSection() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hcaptchaToken, setHcaptchaToken] = useState<string | null>(null)
+  const [apiUrl, setApiUrl] = useState("")
   const captchaRef = useRef<HCaptcha>(null)
+
+  // Set API URL on client side only to avoid hydration mismatch
+  useEffect(() => {
+    setApiUrl(getApiUrl())
+  }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -75,7 +91,7 @@ export function UploadSection() {
         formData.append("hcaptcha_token", hcaptchaToken)
       }
 
-      const response = await fetch(`${API_URL}/api/analyze`, {
+      const response = await fetch(`${apiUrl}/api/analyze`, {
         method: "POST",
         body: formData,
       })

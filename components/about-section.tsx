@@ -36,7 +36,7 @@ export function AboutSection() {
               <div className="mt-8 rounded-lg bg-muted/50 p-6">
                 <h3 className="font-semibold">Powered By</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Next.js, FastAPI, OpenAI GPT-4, and advanced PDF extraction technology
+                  Next.js, FastAPI, OpenAI, and advanced PDF extraction technology
                 </p>
               </div>
             </CardContent>
