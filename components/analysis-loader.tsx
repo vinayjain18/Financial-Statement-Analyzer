@@ -9,14 +9,14 @@ const ANALYSIS_STEPS = [
     label: "Extracting document data",
     description: "Reading tables and text from your PDF",
     icon: FileSearch,
-    duration: 5000,
+    duration: 2000,
   },
   {
     id: 2,
     label: "AI Analysis",
     description: "Identifying transactions and categories",
     icon: Brain,
-    duration: 8000,
+    duration: 3000,
   },
   {
     id: 3,
@@ -97,7 +97,7 @@ export function AnalysisLoader() {
           </div>
           <h3 className="text-xl font-semibold">Analyzing Your Statement</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            This usually takes 15-30 seconds
+            This usually takes a few seconds
           </p>
         </div>
 

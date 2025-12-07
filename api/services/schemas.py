@@ -51,3 +51,15 @@ class FinancialExtraction(BaseModel):
     opening_balance: Optional[float]
     closing_balance: Optional[float]
     transactions: List[Transaction]
+
+
+# New schema for hybrid approach - categorization only
+class TransactionCategory(BaseModel):
+    """Single transaction categorization"""
+    index: int  # Index of transaction in original list
+    category: Category
+
+
+class CategoryBatch(BaseModel):
+    """Batch of transaction categorizations"""
+    categories: List[TransactionCategory]
