@@ -48,11 +48,19 @@ export function AnalysisLoader() {
   const [funFact, setFunFact] = useState("")
   const [progress, setProgress] = useState(0)
 
+  // Calculate total duration and step percentages
+  const totalDuration = ANALYSIS_STEPS.reduce((sum, step) => sum + step.duration, 0)
+  const stepPercentages = ANALYSIS_STEPS.map((step, index) => {
+    const previousDuration = ANALYSIS_STEPS.slice(0, index).reduce((sum, s) => sum + s.duration, 0)
+    return (previousDuration / totalDuration) * 100
+  })
+
   useEffect(() => {
     // Pick a random fun fact
     setFunFact(FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)])
 
-    // Simulate progress through steps
+    // Track elapsed time for synchronized progress
+    const startTime = Date.now()
     let stepIndex = 0
     const stepTimers: NodeJS.Timeout[] = []
 
@@ -66,19 +74,18 @@ export function AnalysisLoader() {
 
     stepTimers.push(setTimeout(advanceStep, ANALYSIS_STEPS[0].duration))
 
-    // Progress bar animation
+    // Progress bar animation - synchronized with steps
     const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 95) return prev
-        return prev + Math.random() * 2
-      })
-    }, 200)
+      const elapsed = Date.now() - startTime
+      const calculatedProgress = Math.min((elapsed / totalDuration) * 100, 95)
+      setProgress(calculatedProgress)
+    }, 50)
 
     return () => {
       stepTimers.forEach(clearTimeout)
       clearInterval(progressInterval)
     }
-  }, [])
+  }, [totalDuration])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
