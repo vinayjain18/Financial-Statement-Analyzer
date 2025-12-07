@@ -12,7 +12,7 @@ export function HeroSection() {
   }
 
   return (
-    <section id="home" className="relative overflow-hidden py-20 md:py-32">
+    <section id="home" className="relative overflow-hidden py-16 md:py-28">
       {/* Background gradient */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-primary/5 via-background to-background" />
 
@@ -54,6 +54,11 @@ export function HeroSection() {
               <span>Free to use</span>
             </div>
           </div>
+
+          {/* Privacy Note */}
+          <p className="mt-4 text-xs text-muted-foreground/70">
+            * Your data stays private. No personal information is sent to AI or stored on our servers.
+          </p>
 
           {/* Dashboard Preview */}
           <div className="mt-16 rounded-xl border bg-background p-4 shadow-2xl">

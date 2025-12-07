@@ -23,14 +23,14 @@ const ANALYSIS_STEPS = [
     label: "Calculating insights",
     description: "Computing totals and breakdowns",
     icon: Calculator,
-    duration: 4000,
+    duration: 3000,
   },
   {
     id: 4,
     label: "Preparing your report",
     description: "Almost there...",
     icon: CheckCircle2,
-    duration: 3000,
+    duration: 2000,
   },
 ]
 

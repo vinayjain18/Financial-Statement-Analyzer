@@ -250,16 +250,6 @@ export function UploadSection() {
                 </div>
               )}
 
-              {/* Sample Statement */}
-              <div className="mt-6 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Don&apos;t have a statement?{" "}
-                  <button className="text-primary hover:underline">
-                    Download Sample Statement
-                  </button>
-                </p>
-              </div>
-
               {/* Privacy Notice */}
               <div className="mt-8 flex items-start gap-3 rounded-lg bg-muted/50 p-4">
                 <Lock className="h-5 w-5 text-primary mt-0.5" />
