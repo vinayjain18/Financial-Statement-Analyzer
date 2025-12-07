@@ -113,27 +113,43 @@ def calculate_financials(gpt_response: Dict[str, Any]) -> Dict[str, Any]:
         sorted(income_breakdown.items(), key=lambda x: x[1], reverse=True)
     )
 
-    # Get opening and closing balance (handle both snake_case and camelCase)
+    # Get opening balance (handle both snake_case and camelCase)
     opening_balance = gpt_response.get("opening_balance", gpt_response.get("openingBalance"))
-    closing_balance = gpt_response.get("closing_balance", gpt_response.get("closingBalance"))
+    extracted_closing = gpt_response.get("closing_balance", gpt_response.get("closingBalance"))
 
-    # Convert to float if not None
+    # Convert opening balance to float if not None
     if opening_balance is not None:
         try:
             opening_balance = round(float(opening_balance), 2)
         except (ValueError, TypeError):
             opening_balance = None
 
-    if closing_balance is not None:
+    # Convert extracted closing for validation purposes only
+    if extracted_closing is not None:
         try:
-            closing_balance = round(float(closing_balance), 2)
+            extracted_closing = round(float(extracted_closing), 2)
         except (ValueError, TypeError):
-            closing_balance = None
+            extracted_closing = None
 
-    # If we have opening balance but no closing, calculate it
-    if opening_balance is not None and closing_balance is None:
+    # Always calculate closing balance from formula for accuracy
+    if opening_balance is not None:
         closing_balance = round(opening_balance + total_income - total_expenses, 2)
-        logger.info(f"Calculated closing balance: {closing_balance}")
+        logger.info(f"Closing balance calculated: {closing_balance} (Opening: {opening_balance} + Credits: {total_income} - Debits: {total_expenses})")
+
+        # Validate against extracted closing balance if available
+        if extracted_closing is not None:
+            difference = round(abs(closing_balance - extracted_closing), 2)
+            if difference > 0.01:
+                logger.warning(
+                    f"Closing balance validation: Extracted {extracted_closing} vs Calculated {closing_balance}, "
+                    f"Difference: {difference}"
+                )
+            else:
+                logger.info(f"Closing balance validated against extracted value")
+    else:
+        # No opening balance, use extracted closing as fallback
+        closing_balance = extracted_closing
+        logger.warning("Opening balance not found, using extracted closing balance")
 
     # Build final result
     result = {

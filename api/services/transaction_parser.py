@@ -185,13 +185,15 @@ def extract_statement_summary(text: str) -> Optional[StatementSummary]:
             closing_balance = parse_amount(match.group(1))
 
     # HDFC-style summary: 6 numbers in a row
+    # Pattern supports both Indian format (1,23,456.78) and Western format (1,234,567.89)
+    amount_regex = r'(\d{1,3}(?:,\d{2,3})*\.\d{2})'
     hdfc_pattern = re.compile(
-        r'(\d{1,3}(?:,\d{3})*\.\d{2})\s+'  # Opening balance
-        r'(\d+)\s+'                         # Dr count
-        r'(\d+)\s+'                         # Cr count
-        r'(\d{1,3}(?:,\d{3})*\.\d{2})\s+'  # Total debits
-        r'(\d{1,3}(?:,\d{3})*\.\d{2})\s+'  # Total credits
-        r'(\d{1,3}(?:,\d{3})*\.\d{2})'     # Closing balance
+        amount_regex + r'\s+'  # Opening balance
+        r'(\d+)\s+'            # Dr count
+        r'(\d+)\s+'            # Cr count
+        + amount_regex + r'\s+'  # Total debits
+        + amount_regex + r'\s+'  # Total credits
+        + amount_regex           # Closing balance
     )
     match = hdfc_pattern.search(text)
     if match:
@@ -225,9 +227,19 @@ def is_header_or_footer(line: str) -> bool:
     if not stripped:
         return True
 
+    # Always skip these patterns - account header info that may contain dates/amounts
+    always_skip_patterns = [
+        'a/c open date', 'open date', 'expected amb', 'joint holders',
+        'account status', 'account number', 'cust id', 'pr.code', 'br.code',
+        'od limit', 'limit :', 'currency :', 'account open', 'not applicable'
+    ]
+    for pattern in always_skip_patterns:
+        if pattern in stripped:
+            return True
+
     # Skip patterns - common headers/footers across banks
     skip_keywords = [
-        'page', 'account', 'branch', 'address', 'city', 'state', 'phone',
+        'page', 'account', 'a/c', 'branch', 'address', 'city', 'state', 'phone',
         'email', 'ifsc', 'micr', 'nomination', 'customer', 'statement',
         'generated', 'registered', 'disclaimer', 'contents', 'gstin',
         'linked', 'deposits', 'loan', 'locker', 'facility', 'scheme',
@@ -473,10 +485,14 @@ def parse_transactions(text: str) -> Dict[str, Any]:
     # Determine if this is a valid financial statement
     is_financial = len(transactions) > 0
 
+    # Use last transaction's closing balance as the statement's closing balance
+    # This is more reliable than parsing from summary section
+    last_txn_closing = transactions[-1]['closing_balance'] if transactions else None
+
     return {
         'is_financial_statement': is_financial,
         'opening_balance': summary.opening_balance if summary else None,
-        'closing_balance': summary.closing_balance if summary else None,
+        'closing_balance': last_txn_closing if last_txn_closing is not None else summary.closing_balance if summary else None,
         'total_debits': summary.total_debits if summary else None,
         'total_credits': summary.total_credits if summary else None,
         'transactions': transactions
