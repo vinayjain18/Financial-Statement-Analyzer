@@ -160,10 +160,21 @@ async def analyze_statement(
         extracted_data = extract_pdf_data(tmp_path)
 
         text_length = len(extracted_data.get("text", ""))
-        tables_count = len(extracted_data.get("tables", []))
-        logger.info(f"Extraction complete. Text: {text_length} chars, Tables: {tables_count}")
+        logger.info(f"Extraction complete. Text: {text_length} chars")
 
-        if not extracted_data["text"] and not extracted_data["tables"]:
+        # Save extracted data to a text file for debugging
+        debug_file_path = os.path.join(current_dir, "extracted_data_debug.txt")
+        try:
+            with open(debug_file_path, "w", encoding="utf-8") as debug_file:
+                debug_file.write("=" * 80 + "\n")
+                debug_file.write("EXTRACTED TEXT\n")
+                debug_file.write("=" * 80 + "\n\n")
+                debug_file.write(extracted_data.get("text", "No text extracted"))
+            logger.info(f"Debug data saved to: {debug_file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save debug file: {e}")
+
+        if not extracted_data.get("text"):
             logger.error("No data extracted from PDF")
             raise HTTPException(
                 status_code=400,
