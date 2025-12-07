@@ -21,7 +21,17 @@ AI-powered financial statement analyzer that transforms bank statement PDFs into
 **Backend:**
 - Python FastAPI
 - pdfplumber (PDF extraction)
-- OpenAI API
+- OpenAI API (categorization only)
+
+## How It Works
+
+FinSight uses a hybrid approach for accurate financial analysis:
+
+1. **Python Parsing** - Extracts transactions from PDF (dates, amounts, credit/debit type) with 100% accuracy
+2. **LLM Categorization** - OpenAI categorizes transactions (food, bills, income, etc.)
+3. **Python Calculations** - All totals computed using formula: `Closing Balance = Opening Balance + Credits - Debits`
+
+This approach ensures accurate amounts while leveraging AI for intelligent categorization.
 
 **Deployment:**
 - Vercel (serverless)
